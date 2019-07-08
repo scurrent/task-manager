@@ -1,7 +1,10 @@
 const mongoose = require("mongoose")
 const validator = require("validator")
+const bcrypt = require('bcryptjs')
+const jwt = require('jsonwebtoken')
 
-const User = mongoose.model("User", {
+
+const userSchema = new mongoose.Schema({
     name: {
         type: String,
         require : true, 
@@ -24,12 +27,14 @@ const User = mongoose.model("User", {
         require : true,
         trim: true, 
         lowercase : true,
+        unique: true,    //only allow one email
         validate(value){
             if(!validator.isEmail(value)){
                 throw new Error("invalid email")
             }
         }       
     },
+      
     age : {
         type: Number,
         default: 0, 
@@ -38,7 +43,73 @@ const User = mongoose.model("User", {
                 throw new Error('invalid age - no negatives')
             }
         }
-    }
+    },
+    tokens : [{
+        token : {
+            type: String,
+            required: true
+        }    
+        }]
+   
 })
+
+userSchema.methods.genAuthToken = async function (){ 
+    const user = this
+    const token = jwt.sign( {_id: user._id.toString() }, 'thisisMyKey')
+
+    user.tokens = user.tokens.concat({token})
+    await user.save()
+
+    return token  
+
+}
+
+userSchema.methods.toJSON  =  function (){
+//userSchema.methods.getPublicProfile  =  function (){
+    const user = this
+    const userObject = user.toObject()    //to object comes from mongoose
+    delete userObject.password
+    delete userObject.tokens
+    console.log("userObject")
+    console.log(userObject)
+
+    return userObject
+}
+
+
+
+
+userSchema.statics.doLogin = async (email, password) => {
+    const user = await User.findOne({ email })
+    console.log("t1 " + email)
+
+    if(!user){
+        throw new Error('Unable to log in')
+    }
+    const isMatch = await bcrypt.compare(password, user.password)
+
+    if(!isMatch){
+       
+        throw new Error('Unable to log in')
+    }
+
+    return user
+}
+
+userSchema.pre('save', async function(next){
+    //this in a non-arrow fuctiontion
+
+    const user = this
+   
+
+    if(user.isModified('password')){
+        user.password = await bcrypt.hash(user.password, 8)
+
+    }
+    //need next or it will hang
+    next()
+})
+
+const User = mongoose.model("User", userSchema)
 
 module.exports = User

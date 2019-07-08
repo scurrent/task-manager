@@ -50,7 +50,7 @@ updateAgeAndCount("5d1ba6c6bddc754f60fad739" , 2).then((count)=>{
 */
 
 
-const deleteTaskAndCount = async (id, ) => {
+const deleteTaskAndCount = async (id) => {
     const task = await Task.findByIdAndDelete(id,)
     const count = await Task.countDocuments({completed:false})
     return count
